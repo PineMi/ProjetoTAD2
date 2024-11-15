@@ -43,49 +43,55 @@ public class Main {
 	}
 	
 	private static void loadFile(String arguments) {
-		// Casos em que o usuário não especifica o arquivo
-        if (arguments.isEmpty()) {
-            System.out.println("Comando inválido. Use: LOAD <ARQUIVO.ED1>");
-            return;
-        }
-        
-        String fileName = arguments;
-        
-        // Caso o usuário já tenha algum arquivo em uso com modificações não salvas
-        if (currentFile != null && unsavedChanges) {
-            System.out.print("Existem alterações não salvas. Deseja salvar antes de carregar outro arquivo? (S/N): ");
-            String response = scanner.nextLine();
-            if (response.equalsIgnoreCase("S")) {
-                saveFile(currentFile);
-                try {
-					Thread.sleep(1000); // Adicionei esse sleep para não ter conflitos na escrita e leitura do Load e Save
-				} catch (InterruptedException e) {
-					e.printStackTrace();
-				}
-            }
-        }
-        
-        // Carregamento de um novo arquivo para a lista encadeada
-        try {
-            File arquivo = new File(fileName);
-            Scanner input = new Scanner(arquivo);
-            listaAssembly.clear();  // Limpa a lista para carregar o novo conteúdo
+	    // Check if the arguments are empty
+	    if (arguments == null || arguments.isEmpty()) {
+	        System.out.println("Comando inválido. Use: LOAD <ARQUIVO.ED1>");
+	        return;
+	    }
+	    
+	    String fileName = arguments;
 
-            while (input.hasNextLine()) {
-                String linha = input.nextLine();
-                listaAssembly.addLast(linha);  // Adiciona linha na lista encadeada
-            }
-            
-            input.close();  
-            
-            currentFile = fileName;
-            unsavedChanges = false;
-            System.out.println("Arquivo carregado com sucesso: " + fileName);
-            
-        } catch (IOException e) {
-            System.out.println("Erro ao carregar o arquivo: " + e.getMessage());
-        }
+	    // Check if there are unsaved changes before loading a new file
+	    if (currentFile != null && unsavedChanges) {
+	        System.out.print("Existem alterações não salvas. Deseja salvar antes de carregar outro arquivo? (S/N): ");
+	        String response = scanner.nextLine().trim();
+	        
+	        // Ensure valid input (only 'S' or 'N')
+	        if (response.equalsIgnoreCase("S")) {
+	            saveFile(arguments);
+	            // No need for sleep; handle file loading properly
+	        } else if (!response.equalsIgnoreCase("N")) {
+	            System.out.println("Resposta inválida. Nenhuma ação será tomada.");
+	            return; // Exit if invalid response
+	        }
+	    }
+
+	    // Check if the file exists before attempting to load
+	    File arquivo = new File(fileName);
+	    if (!arquivo.exists()) {
+	        System.out.println("Erro: O arquivo " + fileName + " não foi encontrado.");
+	        return;
+	    }
+	    
+	    // Attempt to load the file into the linked list
+	    try (Scanner input = new Scanner(arquivo)) {  // Use try-with-resources for automatic resource management
+	        listaAssembly.clear();  // Clear the list before loading new content
+	        System.out.println(listaAssembly);
+	        while (input.hasNextLine()) {
+	            String linha = input.nextLine();
+	            listaAssembly.addLast(linha);  // Add line to linked list
+	        }
+	        
+	        currentFile = fileName;
+	        unsavedChanges = false;
+	        System.out.println("Arquivo carregado com sucesso: " + fileName);
+	        System.out.println(listaAssembly);
+
+	    } catch (IOException e) {
+	        System.out.println("Erro ao carregar o arquivo: " + e.getMessage());
+	    }
 	}
+
 
 	
     private static void listCode() {
@@ -289,34 +295,49 @@ public class Main {
     
     private static void saveFile(String arguments) {
         String fileName = null;
-    	// Salva o arquivo atual
-    	if (arguments.isEmpty() && currentFile != null) {
-            fileName = currentFile;        
-        // "Salvar como"
-        } else if (!arguments.isEmpty()) {
-            fileName = arguments;           
-        // Caso o usuário não tenha nenhuma informação carregada 
-        } else {
-            System.out.println("Nenhum arquivo carregado. Use LOAD <ARQUIVO.ED1> para especificar um arquivo.");
+        
+        // If no argument is provided and a file is already loaded, save the current file
+        if (arguments == null || arguments.isEmpty()) {
+            if (currentFile != null) {
+                fileName = currentFile;
+            } else {
+                System.out.println("Nenhum arquivo carregado. Use LOAD <ARQUIVO.ED1> para especificar um arquivo.");
+                return;
+            }
+        } 
+        // If an argument is provided, save as the specified file
+        else {
+            fileName = arguments;
         }
-    	
-    	try {
-    		File arquivo = new File(fileName); // Salva na pasta src
-            PrintWriter writer = new PrintWriter(arquivo);
-            // Salva cada linha da lista encadeada no arquivo
+
+        File arquivo = new File(fileName);
+        
+        // Check if the directory exists; if not, create it (if it's a new file path)
+        File parentDir = arquivo.getParentFile();
+        if (parentDir != null && !parentDir.exists()) {
+            parentDir.mkdirs(); // Create the directory if it doesn't exist
+        }
+
+        // Use try-with-resources to automatically close the writer
+        try (PrintWriter writer = new PrintWriter(arquivo)) {
+            // Save each line from the linked list to the file
             Node<String> currentNode = listaAssembly.getHead();
+            System.out.println(listaAssembly);
             while (currentNode != null) {
                 writer.println(currentNode.getDado());
                 currentNode = currentNode.getProx();
             }
-            writer.close();
+            
+            // After saving, update the current file and reset the unsaved changes flag
             System.out.println("Arquivo salvo com sucesso: " + arquivo.getAbsolutePath());
-            currentFile = arquivo.getName(); // Atualiza o nome do arquivo atual
-            unsavedChanges = false; // Reseta a flag de alterações não salvas
+            currentFile = arquivo.getName();  // Update the current file name
+            unsavedChanges = false;  // Reset the unsaved changes flag
+            
         } catch (IOException e) {
             System.out.println("Erro ao salvar o arquivo: " + e.getMessage());
         }
     }
+
 
     
     private static void printHelp() {
